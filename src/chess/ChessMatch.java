@@ -40,6 +40,12 @@ public class ChessMatch {
         this.placeNewPiece('d', 8, new King(board, Color.BLACK));
     }
 
+    public boolean[][] possibleMoves(ChessPosition sourcePosition) {
+        Position position = sourcePosition.toPosition();
+        this.validateSourcePosition(position);
+        return this.board.piece(position).possibleMoves();
+    }
+
     public ChessPiece performChessMove(ChessPosition sourcePosition, ChessPosition targetPosition) {
         Position source = sourcePosition.toPosition();
         Position target = targetPosition.toPosition();
