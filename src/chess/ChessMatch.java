@@ -12,12 +12,12 @@ import java.util.stream.Collectors;
 
 public class ChessMatch {
     private final Board board;
+    private final List<Piece> piecesOnTheBoard = new ArrayList<>();
+    private final List<Piece> capturedPieces = new ArrayList<>();
     private int turn;
     private Color currentPlayer;
     private boolean check;
-
-    private final List<Piece> piecesOnTheBoard = new ArrayList<>();
-    private final List<Piece> capturedPieces = new ArrayList<>();
+    private boolean checkMate;
 
     public ChessMatch() {
         this.board = new Board(8, 8);
@@ -25,6 +25,10 @@ public class ChessMatch {
         this.currentPlayer = Color.WHITE;
         this.check = false;
         this.initialSetup();
+    }
+
+    public boolean getCheckMate() {
+        return this.checkMate;
     }
 
     public int getTurn() {
@@ -57,13 +61,12 @@ public class ChessMatch {
     }
 
     private void initialSetup() {
-        this.placeNewPiece('a', 1, new Rook(board, Color.WHITE));
-        this.placeNewPiece('h', 1, new Rook(board, Color.WHITE));
+        this.placeNewPiece('h', 7, new Rook(board, Color.WHITE));
+        this.placeNewPiece('d', 1, new Rook(board, Color.WHITE));
         this.placeNewPiece('e', 1, new King(board, Color.WHITE));
 
-        this.placeNewPiece('a', 8, new Rook(board, Color.BLACK));
-        this.placeNewPiece('h', 8, new Rook(board, Color.BLACK));
-        this.placeNewPiece('d', 8, new King(board, Color.BLACK));
+        this.placeNewPiece('b', 8, new Rook(board, Color.BLACK));
+        this.placeNewPiece('a', 8, new King(board, Color.BLACK));
     }
 
     public boolean[][] possibleMoves(ChessPosition sourcePosition) {
@@ -80,14 +83,19 @@ public class ChessMatch {
         this.validateTargetPosition(source, target);
         Piece capturedPiece = this.makeMove(source, target);
 
-        if (testCheck(currentPlayer)) {
+        if (this.testCheck(currentPlayer)) {
             this.undoMove(source, target, capturedPiece);
             throw new ChessException("You can't put yourself in check.");
         }
 
-        this.check = testCheck(opponent(currentPlayer));
+        this.check = this.testCheck(opponent(currentPlayer));
 
-        this.nextTurn();
+        if (this.testCheckMate(opponent(currentPlayer))) {
+            this.checkMate = true;
+        } else {
+            this.nextTurn();
+        }
+
         return (ChessPiece) capturedPiece;
     }
 
@@ -151,7 +159,7 @@ public class ChessMatch {
     }
 
     private boolean testCheck(Color color) {
-        Position kingPosition = king(color).getChessPosition().toPosition();
+        Position kingPosition = this.king(color).getChessPosition().toPosition();
         List<Piece> opponentPieces = this.piecesOnTheBoard.stream().filter(x -> ((ChessPiece) x).getColor() == opponent(color)).collect(Collectors.toList());
 
         for (Piece p : opponentPieces) {
@@ -161,5 +169,33 @@ public class ChessMatch {
             }
         }
         return false;
+    }
+
+    private boolean testCheckMate(Color color) {
+        if (!testCheck(color)) {
+            return false;
+        }
+
+        List<Piece> list = this.piecesOnTheBoard.stream().filter(x -> ((ChessPiece) x).getColor() == color).collect(Collectors.toList());
+
+        for (Piece p : list) {
+            boolean[][] mat = p.possibleMoves();
+            for (int i = 0; i < this.board.getRows(); i++) {
+                for (int j = 0; j < this.board.getColumns(); j++) {
+                    if (mat[i][j]) {
+                        Position source = ((ChessPiece) p).getChessPosition().toPosition();
+                        Position target = new Position(i, j);
+                        Piece capturedPiece = this.makeMove(source, target);
+                        boolean testCheck = this.testCheck(color);
+                        this.undoMove(source, target, capturedPiece);
+                        if (!testCheck) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 }
