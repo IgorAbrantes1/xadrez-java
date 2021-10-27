@@ -17,6 +17,7 @@ public class ChessMatch {
     private Color currentPlayer;
     private boolean check;
     private boolean checkMate;
+    private ChessPiece enPassantVulnerable;
 
     public ChessMatch() {
         this.board = new Board(8, 8);
@@ -28,6 +29,10 @@ public class ChessMatch {
 
     public boolean getCheckMate() {
         return this.checkMate;
+    }
+
+    public ChessPiece getEnPassantVulnerable() {
+        return this.enPassantVulnerable;
     }
 
     public int getTurn() {
@@ -69,14 +74,14 @@ public class ChessMatch {
         this.placeNewPiece('f', 1, new Bishop(board, Color.WHITE));
         this.placeNewPiece('g', 1, new Knight(board, Color.WHITE));
         this.placeNewPiece('h', 1, new Rook(board, Color.WHITE));
-        this.placeNewPiece('a', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('b', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('c', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('d', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('e', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('f', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('g', 2, new Pawn(board, Color.WHITE));
-        this.placeNewPiece('h', 2, new Pawn(board, Color.WHITE));
+        this.placeNewPiece('a', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('b', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('c', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('d', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('e', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('f', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('g', 2, new Pawn(board, Color.WHITE, this));
+        this.placeNewPiece('h', 2, new Pawn(board, Color.WHITE, this));
 
         // BLACK
         this.placeNewPiece('a', 8, new Rook(board, Color.BLACK));
@@ -87,14 +92,14 @@ public class ChessMatch {
         this.placeNewPiece('f', 8, new Bishop(board, Color.BLACK));
         this.placeNewPiece('g', 8, new Knight(board, Color.BLACK));
         this.placeNewPiece('h', 8, new Rook(board, Color.BLACK));
-        this.placeNewPiece('a', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('b', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('c', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('d', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('e', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('f', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('g', 7, new Pawn(board, Color.BLACK));
-        this.placeNewPiece('h', 7, new Pawn(board, Color.BLACK));
+        this.placeNewPiece('a', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('b', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('c', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('d', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('e', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('f', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('g', 7, new Pawn(board, Color.BLACK, this));
+        this.placeNewPiece('h', 7, new Pawn(board, Color.BLACK, this));
     }
 
     public boolean[][] possibleMoves(ChessPosition sourcePosition) {
@@ -116,12 +121,21 @@ public class ChessMatch {
             throw new ChessException("You can't put yourself in check.");
         }
 
+        ChessPiece movedPiece = (ChessPiece) this.board.piece(target);
+
         this.check = this.testCheck(opponent(currentPlayer));
 
         if (this.testCheckMate(opponent(currentPlayer))) {
             this.checkMate = true;
         } else {
             this.nextTurn();
+        }
+
+        // #special move: en Passant
+        if (movedPiece instanceof Pawn && (target.getRow() == source.getRow() - 2 || target.getRow() == source.getRow() + 2)) {
+            this.enPassantVulnerable = movedPiece;
+        } else {
+            this.enPassantVulnerable = null;
         }
 
         return (ChessPiece) capturedPiece;
@@ -160,6 +174,34 @@ public class ChessMatch {
             this.capturedPieces.add(capturedPiece);
         }
 
+        // #special move: castling
+        this.castlingMakeMove(source, target, p);
+
+        // #special move: en passant
+        capturedPiece = this.enPassantMakeMove(source, target, p, capturedPiece);
+
+        return capturedPiece;
+    }
+
+    private Piece enPassantMakeMove(Position source, Position target, ChessPiece p, Piece capturedPiece) {
+        // #special move: en passant
+        if (p instanceof Pawn) {
+            if (source.getColumn() != target.getColumn() && capturedPiece == null) {
+                Position pawnPosition;
+                if (p.getColor() == Color.WHITE) {
+                    pawnPosition = new Position(target.getRow() + 1, target.getColumn());
+                } else {
+                    pawnPosition = new Position(target.getRow() - 1, target.getColumn());
+                }
+                capturedPiece = this.board.removePiece(pawnPosition);
+                this.capturedPieces.add(capturedPiece);
+                this.piecesOnTheBoard.remove(capturedPiece);
+            }
+        }
+        return capturedPiece;
+    }
+
+    private void castlingMakeMove(Position source, Position target, ChessPiece p) {
         // #special move: castling king's side rook
         if (p instanceof King && target.getColumn() == source.getColumn() + 2) {
             Position sourceRook = new Position(source.getRow(), source.getColumn() + 3);
@@ -177,8 +219,6 @@ public class ChessMatch {
             this.board.placePiece(rook, targetRook);
             rook.increaseMoveCount();
         }
-
-        return capturedPiece;
     }
 
     private void undoMove(Position source, Position target, Piece capturedPiece) {
@@ -192,6 +232,31 @@ public class ChessMatch {
             this.piecesOnTheBoard.add(capturedPiece);
         }
 
+        // #special move: castling
+        this.castlingUndoMove(source, target, p);
+
+        // #special move: en passant
+        this.enPassantUndoMove(source, target, capturedPiece, p);
+    }
+
+    private void enPassantUndoMove(Position source, Position target, Piece capturedPiece, ChessPiece p) {
+        // #special move: en passant
+        if (p instanceof Pawn) {
+            if (source.getColumn() != target.getColumn() && capturedPiece == this.enPassantVulnerable) {
+                ChessPiece pawn = (ChessPiece) this.board.removePiece(target);
+
+                Position pawnPosition;
+                if (p.getColor() == Color.WHITE) {
+                    pawnPosition = new Position(3, target.getColumn());
+                } else {
+                    pawnPosition = new Position(4, target.getColumn());
+                }
+                this.board.placePiece(pawn, pawnPosition);
+            }
+        }
+    }
+
+    private void castlingUndoMove(Position source, Position target, ChessPiece p) {
         // #special move: castling king's side rook
         if (p instanceof King && target.getColumn() == source.getColumn() + 2) {
             Position sourceRook = new Position(source.getRow(), source.getColumn() + 3);
